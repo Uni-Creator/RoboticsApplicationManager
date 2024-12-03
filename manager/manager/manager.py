@@ -218,6 +218,10 @@ class Manager:
         """
         try:
             cfg_dict = event.kwargs.get("data", {})
+            if cfg_dict['world'] == None:
+                self.world_launcher = None
+                LogManager.logger.info("Launch transition finished")
+                return
             cfg = ConfigurationManager.validate(cfg_dict)
             if "zip" in cfg_dict:
                 LogManager.logger.info("Launching universe from received zip")
@@ -259,6 +263,7 @@ class Manager:
         LogManager.logger.info("Visualization transition started")
 
         visualization_type = event.kwargs.get("data", {})
+
         self.visualization_launcher = LauncherVisualization(
             visualization=visualization_type
         )
@@ -488,8 +493,8 @@ ideal_cycle = 20
             self.gui_server = None
 
     def on_terminate_universe(self, event):
-
-        self.world_launcher.terminate()
+        if self.world_launcher != None:
+            self.world_launcher.terminate()
 
     def on_disconnect(self, event):
         try:

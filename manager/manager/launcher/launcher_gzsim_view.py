@@ -46,7 +46,7 @@ class LauncherGzsimView(ILauncher):
         gzclient_thread.start()
         self.threads.append(gzclient_thread)
 
-        process_name = "gzclient"
+        process_name = "gz sim"
         wait_for_process_to_start(process_name, timeout=60)
 
         self.running = True

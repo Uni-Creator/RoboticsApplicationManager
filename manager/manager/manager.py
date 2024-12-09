@@ -499,6 +499,12 @@ ideal_cycle = 20
                         # Extract PID
                         pid = int(line.split()[1])
                         subprocess.run(['kill', '-15', str(pid)], check=True)
+                        
+                        # Avoid zombies
+                        try:
+                            os.waitpid(pid, 0)
+                        except ChildProcessError:
+                            pass
                     except Exception as e:
                         LogManager.logger.exception(f"Failed to terminate process with line: {line}. Error: {e}")
 
@@ -518,7 +524,6 @@ ideal_cycle = 20
             except Exception:
                 LogManager.logger.exception("No application running")
                 print(traceback.format_exc())
-        self.terminate_harmonic_processes()
 
     def on_terminate_visualization(self, event):
 
@@ -526,12 +531,10 @@ ideal_cycle = 20
         if self.gui_server != None:
             self.gui_server.stop()
             self.gui_server = None
-        self.terminate_harmonic_processes()
 
     def on_terminate_universe(self, event):
         if self.world_launcher != None:
             self.world_launcher.terminate()
-        self.terminate_harmonic_processes()
 
     def on_disconnect(self, event):
         try:

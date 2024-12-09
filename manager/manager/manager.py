@@ -473,6 +473,39 @@ ideal_cycle = 20
         self.unpause_sim()
 
         LogManager.logger.info("Run application transition finished")
+    
+    def terminate_harmonic_processes(self):
+        """
+        Terminate all processes within the Docker container whose command line contains 'gz' or 'launch'.
+        """
+        keywords = ['gz', 'launch']
+        for keyword in keywords:
+            try:
+                ps_aux_cmd = ['ps', 'aux']
+                grep_cmd = ['grep', keyword]
+                grep_exclude_cmd = ['grep', '-v', 'grep']
+
+                ps_aux_proc = subprocess.Popen(ps_aux_cmd, stdout=subprocess.PIPE)
+                grep_proc = subprocess.Popen(grep_cmd, stdin=ps_aux_proc.stdout, stdout=subprocess.PIPE)
+                exclude_grep_proc = subprocess.Popen(grep_exclude_cmd, stdin=grep_proc.stdout, stdout=subprocess.PIPE)
+
+                ps_aux_proc.stdout.close()
+                grep_proc.stdout.close()
+
+                output = exclude_grep_proc.communicate()[0].decode('utf-8')
+                
+                for line in output.splitlines():
+                    try:
+                        # Extract PID
+                        pid = int(line.split()[1])
+                        subprocess.run(['kill', '-15', str(pid)], check=True)
+                    except Exception as e:
+                        LogManager.logger.exception(f"Failed to terminate process with line: {line}. Error: {e}")
+
+            except Exception as e:
+                LogManager.logger.exception(
+                    f"Failed to search and terminate processes with keyword '{keyword}': {e}"
+                )
 
     def on_terminate_application(self, event):
 
@@ -485,6 +518,7 @@ ideal_cycle = 20
             except Exception:
                 LogManager.logger.exception("No application running")
                 print(traceback.format_exc())
+        self.terminate_harmonic_processes()
 
     def on_terminate_visualization(self, event):
 
@@ -492,10 +526,12 @@ ideal_cycle = 20
         if self.gui_server != None:
             self.gui_server.stop()
             self.gui_server = None
+        self.terminate_harmonic_processes()
 
     def on_terminate_universe(self, event):
         if self.world_launcher != None:
             self.world_launcher.terminate()
+        self.terminate_harmonic_processes()
 
     def on_disconnect(self, event):
         try:
@@ -525,6 +561,7 @@ ideal_cycle = 20
                 LogManager.logger.exception("Exception terminating world launcher")
 
         # Reiniciar el script
+        self.terminate_harmonic_processes()
         python = sys.executable
         os.execl(python, python, *sys.argv)
 

@@ -141,6 +141,7 @@ class Manager:
         self.consumer = ManagerConsumer(host, port, self.queue)
         self.world_launcher = None
         self.visualization_launcher = None
+        self.visualization_type = None
         self.application_process = None
         self.running = True
         self.gui_server = None
@@ -262,17 +263,17 @@ class Manager:
 
         LogManager.logger.info("Visualization transition started")
 
-        visualization_type = event.kwargs.get("data", {})
+        self.visualization_type = event.kwargs.get("data", {})
 
         self.visualization_launcher = LauncherVisualization(
-            visualization=visualization_type
+            visualization=self.visualization_type
         )
         self.visualization_launcher.run()
 
-        if visualization_type == "gazebo_rae":
+        if self.visualization_type in ["gazebo_rae", "gzsim_rae"]:
             self.gui_server = Server(2303, self.update)
             self.gui_server.start()
-        elif visualization_type == "bt_studio":
+        elif self.visualization_type == "bt_studio":
             self.gui_server = FileWatchdog('/tmp/tree_state', self.update_bt_studio) # TODO: change if type bt
             self.gui_server.start()
 
@@ -472,6 +473,45 @@ ideal_cycle = 20
         self.unpause_sim()
 
         LogManager.logger.info("Run application transition finished")
+    
+    def terminate_harmonic_processes(self):
+        """
+        Terminate all processes within the Docker container whose command line contains 'gz' or 'launch'.
+        """
+        keywords = ['gz', 'launch']
+        for keyword in keywords:
+            try:
+                ps_aux_cmd = ['ps', 'aux']
+                grep_cmd = ['grep', keyword]
+                grep_exclude_cmd = ['grep', '-v', 'grep']
+
+                ps_aux_proc = subprocess.Popen(ps_aux_cmd, stdout=subprocess.PIPE)
+                grep_proc = subprocess.Popen(grep_cmd, stdin=ps_aux_proc.stdout, stdout=subprocess.PIPE)
+                exclude_grep_proc = subprocess.Popen(grep_exclude_cmd, stdin=grep_proc.stdout, stdout=subprocess.PIPE)
+
+                ps_aux_proc.stdout.close()
+                grep_proc.stdout.close()
+
+                output = exclude_grep_proc.communicate()[0].decode('utf-8')
+                
+                for line in output.splitlines():
+                    try:
+                        # Extract PID
+                        pid = int(line.split()[1])
+                        subprocess.run(['kill', '-15', str(pid)], check=True)
+                        
+                        # Avoid zombies
+                        try:
+                            os.waitpid(pid, 0)
+                        except ChildProcessError:
+                            pass
+                    except Exception as e:
+                        LogManager.logger.exception(f"Failed to terminate process with line: {line}. Error: {e}")
+
+            except Exception as e:
+                LogManager.logger.exception(
+                    f"Failed to search and terminate processes with keyword '{keyword}': {e}"
+                )
 
     def on_terminate_application(self, event):
 
@@ -524,6 +564,7 @@ ideal_cycle = 20
                 LogManager.logger.exception("Exception terminating world launcher")
 
         # Reiniciar el script
+        self.terminate_harmonic_processes()
         python = sys.executable
         os.execl(python, python, *sys.argv)
 
@@ -549,23 +590,40 @@ ideal_cycle = 20
     def pause_sim(self):
         if "noetic" in str(self.ros_version):
             rosservice.call_service("/gazebo/pause_physics", [])
+        elif self.visualization_type == "gzsim_rae":
+            self.call_gzservice("$(gz service -l | grep '^/world/\w*/control$')","gz.msgs.WorldControl","gz.msgs.Boolean","3000","pause: true")
         else:
             self.call_service("/pause_physics", "std_srvs/srv/Empty")
 
     def unpause_sim(self):
         if "noetic" in str(self.ros_version):
             rosservice.call_service("/gazebo/unpause_physics", [])
+        elif self.visualization_type == "gzsim_rae":
+            self.call_gzservice("$(gz service -l | grep '^/world/\w*/control$')","gz.msgs.WorldControl","gz.msgs.Boolean","3000","pause: false")
         else:
             self.call_service("/unpause_physics", "std_srvs/srv/Empty")
 
     def reset_sim(self):
         if "noetic" in str(self.ros_version):
             rosservice.call_service("/gazebo/reset_world", [])
+        elif self.visualization_type == "gzsim_rae":
+            self.call_gzservice("$(gz service -l | grep '^/world/\w*/control$')","gz.msgs.WorldControl","gz.msgs.Boolean","3000","reset: {all: true}")
         else:
             self.call_service("/reset_world", "std_srvs/srv/Empty")
 
     def call_service(self, service, service_type):
         command = f"ros2 service call {service} {service_type}"
+        subprocess.call(
+            f"{command}",
+            shell=True,
+            stdout=sys.stdout,
+            stderr=subprocess.STDOUT,
+            bufsize=1024,
+            universal_newlines=True,
+        )
+    
+    def call_gzservice(self, service, reqtype, reptype, timeout, req):
+        command = f"gz service -s {service} --reqtype {reqtype} --reptype {reptype} --timeout {timeout} --req '{req}'"
         subprocess.call(
             f"{command}",
             shell=True,

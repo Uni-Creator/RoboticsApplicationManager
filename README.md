@@ -1,6 +1,6 @@
 # 🤖 Robotics Application Manager
 
-The **🤖 Robotics Application Manager** (RAM) provides an advanced framework for integrating, configuring, and managing robotics workflows. Designed as a dynamic state machine, it facilitates smooth transitions across different application states. As part of the [🌐 JdeRobot](https://jderobot.org) ecosystem, RAM caters to a wide array of robotics and computer vision applications.
+The **🤖 Robotics Application Manager** (RAM) provides an advanced framework for integrating, configuring, and managing robotics workflows. Designed as a dynamic state machine, it facilitates smooth transitions across different application states. As part of the [🌐 JdeRobot](https://jderobot.github.io/) ecosystem, RAM caters to a wide array of robotics and computer vision applications.
 
 ---
 
@@ -165,7 +165,7 @@ This project is licensed under the [📜 GPL v3 License](LICENSE).
 
 ## 📬 Get in Touch
 
-Have questions or feedback? Contact us via the [🌐 JdeRobot Team](https://jderobot.org/Contact) or submit issues directly on the repository.
+Have questions or feedback? Contact us via the [🌐 JdeRobot Team](https://jderobot.github.io/) or submit issues directly on the repository.
 
 ---
 
